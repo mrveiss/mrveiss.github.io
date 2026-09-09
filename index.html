@@ -116,6 +116,23 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=Schibsted+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<!-- Honour an explicit theme choice made on /AutoBot-AI/. Same origin, same
+     `ab-theme` key, and the values it stores ('light' / 'dark') are exactly the
+     ones the selectors below expect -- so a visitor who overrode the theme on the
+     project site does not find the root page disagreeing with that choice.
+
+     Only an EXPLICIT choice is read. The project page persists `ab-theme` on
+     toggle and not on load, so an absent key means the visitor never chose, and
+     the unstamped default correctly falls through to prefers-color-scheme.
+
+     Inline and in <head> on purpose: stamping after first paint is a visible
+     flash of the wrong theme. -->
+<script>
+  try {
+    var t = localStorage.getItem('ab-theme');
+    if (t === 'light' || t === 'dark') { document.documentElement.dataset.theme = t; }
+  } catch (e) { /* storage blocked: unstamped, so prefers-color-scheme decides */ }
+</script>
 <style>
 :root{
   --orange-50:#fcefe0;--orange-200:#f1bb83;--orange-300:#e99e55;--orange-400:#e2842e;

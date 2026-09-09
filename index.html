@@ -452,6 +452,42 @@ document.querySelectorAll('.copy').forEach(function (btn) {
   document.getElementById('consent-decline')
     .addEventListener('click', function () { answer('denied', 'denied'); });
 })();
+
+// Outbound-click tracking.
+//
+// GitHub's referrer data cannot tell this page apart from /AutoBot-AI/: the
+// traffic API reports a bare host ("mrveiss.github.io"), discarding path and
+// query, and both pages share that host. So a `?from=hub` marker on the link
+// would be invisible to the very number it was meant to split -- the ambiguity
+// has to be resolved on this side, where we control the measurement.
+//
+// `page_location` already says which page the click came from, so the event
+// needs no marker of its own.
+//
+// Consent-gated by construction: with analytics_storage denied this never
+// reaches GA, which means declined visitors are absent rather than estimated.
+// That is the correct trade and it does mean these counts are a floor.
+(function () {
+  var here = location.hostname;
+
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest && e.target.closest('a[href]');
+    if (!a) return;
+
+    var url;
+    try { url = new URL(a.href, location.href); } catch (err) { return; }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
+    if (url.hostname === here) return; // same host covers /AutoBot-AI/ too
+
+    if (typeof gtag !== 'function') return;
+    gtag('event', 'outbound_click', {
+      link_url: url.href,
+      link_domain: url.hostname,
+      link_text: (a.textContent || '').trim().slice(0, 100),
+      outbound: true
+    });
+  }, true);
+})();
 </script>
 </body>
 </html>

@@ -1,0 +1,28 @@
+# Content checks for the root page.
+#
+# The Pages build proves Jekyll ran. It does not parse index.html, so none of the
+# defects below are visible to it -- and a green Pages build reads like a passing
+# check, which is why their absence did not look like an absence. See #2.
+name: page checks
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Exit 0 = every check passed. Exit 1 = a check ran and failed.
+      # Exit 3 = a check could not run; that fails the job too, because a guard
+      # that could not look must never be reported as one that found nothing.
+      - name: Check page content
+        run: python3 scripts/check_page.py

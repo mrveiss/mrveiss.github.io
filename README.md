@@ -1,6 +1,8 @@
 # mrveiss.github.io
 
-The landing page served at **https://mrveiss.github.io/**.
+The landing page served at **https://mrveiss.github.io/** — authored here, deployed
+from here. This repository is the source of truth; there is no copy step and no
+other place to edit it.
 
 It exists because GitHub Pages serves the user root *only* from a repository with
 this exact name. A project repository always serves under its own path — which is
@@ -19,20 +21,30 @@ The three are not peers. AutoBot is the platform; the two skills marketplaces ar
 the working practice extracted from building it. The page's layout says so — one
 primary, two derived — rather than presenting a row of three equal cards.
 
-## Source of truth is elsewhere
+## What is in here
 
-`index.html` here is a **deployed copy**. It is authored in
-[`AutoBot-AI/site/mrveiss.github.io/`](https://github.com/mrveiss/AutoBot-AI/tree/Dev_new_gui/site/mrveiss.github.io),
-where it gets review and CI like anything else.
+```
+index.html    the landing page — hand-authored, no front matter
+_config.yml   Jekyll config: sitemap plugin, theme for future Markdown, README excluded
+robots.txt    crawler policy, including named AI agents
+llms.txt      llmstxt.org summary for agents
+README.md     this file — excluded from the build, not served
+```
 
-To change the page:
+## Deploying
 
-1. Edit it there, in a pull request.
-2. After that merges, copy `index.html` into this repository and push.
+Push to `main`. GitHub Pages builds and serves it; there is nothing else to do.
 
-**The copy is manual on purpose.** This is the first thing a visitor sees, and a
-change reaching it without a human reading the diff is a worse failure than a page
-that is a few minutes stale.
+**Push once, then leave it alone for 20+ minutes.** Pages deploys are exclusive and
+the queue is slow. Do **not** `POST /pages/builds` to hurry one along — that cancels
+the deploy already in flight, and the API then reports the cancellation as
+`"Page build failed."` with a null detail, indistinguishable from a real content
+failure. `gh run list` is the only view that shows whether a runner actually holds
+the job. Two of three deploys on the first day of this repository died to that nudge.
+
+`/pages/builds/latest` is a positional alias, not a handle: a newer build re-points
+it, so anything watching it can silently follow two different builds and never see
+the first one's failure. Key a watcher to the run id.
 
 ## The theme does not style the landing page
 
@@ -44,6 +56,17 @@ wrapping it in a layout. Its palette, type scale and theme handling are taken fr
 consistent frame rather than arriving unstyled. If `index.html` ever gains front
 matter it **will** start being wrapped by that layout — the one change that would
 silently alter the page.
+
+## Analytics
+
+Google Analytics `G-ZV9XT0XSWR`, the same property as the AutoBot site, so the two
+report into one stream rather than splitting traffic.
+
+Consent Mode v2 with everything denied by default; the defaults are set **before**
+`gtag.js` loads, which is load-bearing rather than stylistic. The visitor's answer is
+stored under `ab-consent` — the same key the `/AutoBot-AI/` page uses. Both are the
+same origin, so a visitor who answers on either is not asked twice. **Do not rename
+that key**: a new one asks the same person a second time for one decision.
 
 ## Licence
 

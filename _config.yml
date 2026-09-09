@@ -20,8 +20,8 @@ description: >-
 
 theme: jekyll-theme-minimal
 
-# The landing page is hand-authored; keep Jekyll away from it and from the
-# deploy contract in the README.
+# README.md documents this repository for the people working in it; it is not
+# part of the served site.
 exclude:
   - README.md
 

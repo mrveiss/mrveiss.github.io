@@ -20,10 +20,13 @@ description: >-
 
 theme: jekyll-theme-minimal
 
-# README.md documents this repository for the people working in it; it is not
-# part of the served site.
+# Neither of these is site content. `scripts/` holds the CI checkers, which Jekyll
+# would otherwise publish at /scripts/ and list in sitemap.xml; README.md documents
+# this repository for the people working in it. `.github/` needs no entry -- Jekyll
+# already ignores dot-directories.
 exclude:
   - README.md
+  - scripts
 
 plugins:
   - jekyll-sitemap

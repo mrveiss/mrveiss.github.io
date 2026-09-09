@@ -1,0 +1,37 @@
+# Does the live site still serve what this repository contains?
+#
+# On a SCHEDULE, not on push, deliberately: a divergence caused by a build that
+# never completed produces no push, so a push-triggered check cannot see the case
+# it exists for. Observed once already -- 40 minutes of stale bytes, noticed only
+# because someone happened to curl the URL. See #3.
+name: freshness
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read # to tell a queued deploy from a cancelled one
+
+concurrency:
+  group: freshness
+  cancel-in-progress: false
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main # compare the served bytes against main, never against a PR head
+
+      # Exit 0 = in sync, or divergent with a deploy legitimately in flight.
+      # Exit 1 = real drift: cancelled, stuck, absent, or a deploy that claims
+      #          success while serving different bytes.
+      # Exit 3 = the live page could not be fetched -- reported, never passed.
+      - name: Compare served bytes against main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 scripts/check_freshness.py

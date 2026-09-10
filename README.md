@@ -57,6 +57,37 @@ consistent frame rather than arriving unstyled. If `index.html` ever gains front
 matter it **will** start being wrapped by that layout — the one change that would
 silently alter the page.
 
+## How quickly drift is detected
+
+The freshness check does **not** catch a stale page immediately, and the figure is
+worth knowing before trusting a green tick.
+
+Measured on the first `page_build`-triggered run, decomposed:
+
+```
+Pages deploy completes -> page_build event fires    14m 49s
+page_build fires       -> a runner picks up the job 24m 47s   (outlier, see below)
+job runs                                                 4s
+                                                    -----------
+                                                    39m 38s
+```
+
+The middle term is not typical. Across the other freshness runs a runner was
+assigned in **3s, 3s, 22s and 4m08s** — so a normal end-to-end detection is closer
+to **~15 minutes**, dominated by how long GitHub takes to deliver the `page_build`
+event. The 39m38s figure is the worst observed, not the expected one.
+
+Both numbers are one-sample-ish and neither is controlled from this repository.
+
+**What that means in practice:** a divergence lasting a few minutes will usually not
+be caught. The incident that prompted this check lasted ~40 minutes and would have
+been caught, but only just. This is a personal landing page and that trade is
+deliberate — stated here so nobody reads a passing check as proof the site is
+currently correct.
+
+The `cron: '7,37 * * * *'` backstop is slower still: GitHub sheds roughly three in
+four of those, giving observed gaps of 2h02m and 3h49m.
+
 ## Analytics
 
 Google Analytics `G-ZV9XT0XSWR`, the same property as the AutoBot site, so the two

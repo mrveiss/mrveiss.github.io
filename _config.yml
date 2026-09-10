@@ -27,6 +27,7 @@ theme: jekyll-theme-minimal
 exclude:
   - README.md
   - scripts
+  - assets/make_card.py
 
 plugins:
   - jekyll-sitemap

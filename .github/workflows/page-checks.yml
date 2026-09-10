@@ -26,3 +26,10 @@ jobs:
       # that could not look must never be reported as one that found nothing.
       - name: Check page content
         run: python3 scripts/check_page.py
+
+      # The freshness check's drift classification cannot be exercised by normal
+      # operation -- the fetch keeps succeeding and the site keeps matching -- so
+      # without these its cancelled/stuck/absent branches stay unverified, which is
+      # indistinguishable from broken. No network: every boundary is mocked.
+      - name: Test freshness drift classification
+        run: python3 scripts/test_check_freshness.py

@@ -26,6 +26,8 @@ import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from outcomes import Outcome
+
 ROOT = Path(__file__).resolve().parent.parent
 PAGE = ROOT / "index.html"
 LIVE = "https://mrveiss.github.io/"
@@ -36,7 +38,11 @@ TIMEOUT = 20
 SETTLE_ATTEMPTS = 3
 SETTLE_SECONDS = 20
 
-OK, DRIFT, COULD_NOT_CHECK = 0, 1, 3
+# Named for what they mean here; the exit codes come from the shared vocabulary so
+# "could not check" is one concept across both checkers rather than two spellings.
+OK = Outcome.PASS.exit_code
+DRIFT = Outcome.FAIL.exit_code
+COULD_NOT_CHECK = Outcome.UNKNOWN.exit_code
 
 
 def api(path: str) -> dict | None:
@@ -87,6 +93,17 @@ def fetch_live() -> bytes | None:
     return None
 
 
+def _explain_in_flight(run: dict, status: str, age, where: str) -> int:
+    """A deploy still running explains a divergence; one stuck past the threshold does not."""
+    if age > STUCK_AFTER:
+        print(f"::error title=Deploy stuck::Build {run['id']} has been {status} for "
+              f"{age} (> {STUCK_AFTER}), holding the divergence open. {where}")
+        return DRIFT
+    print(f"BUILD IN PROGRESS: {run['id']} {status} for {age}; divergence is expected "
+          f"to close when it finishes. {where}")
+    return OK
+
+
 def explain_drift(run: dict | None) -> int:
     """Name the cause of a divergence. Never returns OK."""
     if run is None:
@@ -101,13 +118,7 @@ def explain_drift(run: dict | None) -> int:
     where = run.get("html_url", "")
 
     if status in ("queued", "in_progress", "waiting", "pending"):
-        if age > STUCK_AFTER:
-            print(f"::error title=Deploy stuck::Build {run['id']} has been {status} for "
-                  f"{age} (> {STUCK_AFTER}), holding the divergence open. {where}")
-            return DRIFT
-        print(f"BUILD IN PROGRESS: {run['id']} {status} for {age}; divergence is expected "
-              f"to close when it finishes. {where}")
-        return OK
+        return _explain_in_flight(run, status, age, where)
 
     if conclusion == "cancelled":
         print(f"::error title=Deploy cancelled::Build {run['id']} was CANCELLED, so the "
@@ -120,6 +131,28 @@ def explain_drift(run: dict | None) -> int:
           f"conclusion={conclusion}, yet the served bytes differ from this repository. "
           f"{where}")
     return DRIFT
+
+
+def _settle(want_hash: str) -> int | None:
+    """Re-fetch before calling a mismatch drift.
+
+    This runs ON deploy completion, and a just-finished deploy can still be served
+    from cache for a few seconds -- so the first mismatch after a healthy deploy is
+    expected. Crying drift there would make the check noisy enough to ignore, which
+    is worse than not having it.
+
+    Returns a exit code when it resolves, or None to fall through to classification.
+    """
+    for attempt in range(SETTLE_ATTEMPTS):
+        time.sleep(SETTLE_SECONDS)
+        again = fetch_live()
+        if again is None:
+            return COULD_NOT_CHECK
+        if hashlib.sha256(again).hexdigest() == want_hash:
+            print(f"\nIN SYNC after settling {(attempt + 1) * SETTLE_SECONDS}s "
+                  "(cache lag, not drift).")
+            return OK
+    return None
 
 
 def main() -> int:
@@ -141,20 +174,9 @@ def main() -> int:
         print("\nIN SYNC: the served page is byte-identical to this repository.")
         return OK
 
-    # Re-fetch before concluding. A deploy that has just finished can still be
-    # served from cache for a few seconds, and this check now runs ON deploy
-    # completion -- so the first mismatch after a healthy deploy is expected. Crying
-    # drift there would make the check noisy enough to be ignored, which is worse
-    # than not having it.
-    for attempt in range(SETTLE_ATTEMPTS):
-        time.sleep(SETTLE_SECONDS)
-        again = fetch_live()
-        if again is None:
-            return COULD_NOT_CHECK
-        if hashlib.sha256(again).hexdigest() == want_hash:
-            print(f"\nIN SYNC after settling {(attempt + 1) * SETTLE_SECONDS}s "
-                  "(cache lag, not drift).")
-            return OK
+    settled = _settle(want_hash)
+    if settled is not None:
+        return settled
 
     print(f"\nDIVERGENT: still differs after {SETTLE_ATTEMPTS * SETTLE_SECONDS}s -- "
           "not cache lag.")

@@ -7,8 +7,30 @@
 name: freshness
 
 on:
+  # A cron cannot be made reliable by asking harder. Measured on this repository:
+  # `*/30` delivered 3 runs in 5h51m where ~12 were requested, with gaps of 2h02m
+  # and 3h49m. The drift window this check exists for was 40 MINUTES, so cron alone
+  # would most likely have missed it. Hence the event trigger below; the cron is a
+  # backstop, not the primary mechanism.
+  #
+  # '7,37' rather than '*/30': same cadence, off the :00 and :30 minutes where every
+  # scheduled job on the platform collides and gets shed first.
   schedule:
-    - cron: '*/30 * * * *'
+    - cron: '7,37 * * * *'
+
+  # The moment drift either resolves or becomes permanent. Fires on a CANCELLED
+  # deploy too, which is the case that holds a divergence open indefinitely and the
+  # one the Pages API mislabels as "Page build failed."
+  #
+  # UNVERIFIED: `pages build and deployment` is a dynamic workflow
+  # (dynamic/pages/pages-build-deployment), not a file in .github/workflows, and I do
+  # not know whether workflow_run matches a generated workflow by name. The next
+  # deploy is the test. If no workflow_run-triggered run appears, this trigger is
+  # inert and the cron is all there is -- do not assume it works because it is here.
+  workflow_run:
+    workflows: ["pages build and deployment"]
+    types: [completed]
+
   workflow_dispatch:
 
 permissions:

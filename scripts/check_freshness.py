@@ -20,6 +20,7 @@ import hashlib
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 from datetime import datetime, timedelta, timezone
@@ -32,6 +33,8 @@ REPO = os.environ.get("GITHUB_REPOSITORY", "mrveiss/mrveiss.github.io")
 PAGES_WORKFLOW = "dynamic/pages/pages-build-deployment"
 STUCK_AFTER = timedelta(minutes=30)
 TIMEOUT = 20
+SETTLE_ATTEMPTS = 3
+SETTLE_SECONDS = 20
 
 OK, DRIFT, COULD_NOT_CHECK = 0, 1, 3
 
@@ -138,7 +141,23 @@ def main() -> int:
         print("\nIN SYNC: the served page is byte-identical to this repository.")
         return OK
 
-    print("\nDIVERGENT: the served page is not what this repository contains.")
+    # Re-fetch before concluding. A deploy that has just finished can still be
+    # served from cache for a few seconds, and this check now runs ON deploy
+    # completion -- so the first mismatch after a healthy deploy is expected. Crying
+    # drift there would make the check noisy enough to be ignored, which is worse
+    # than not having it.
+    for attempt in range(SETTLE_ATTEMPTS):
+        time.sleep(SETTLE_SECONDS)
+        again = fetch_live()
+        if again is None:
+            return COULD_NOT_CHECK
+        if hashlib.sha256(again).hexdigest() == want_hash:
+            print(f"\nIN SYNC after settling {(attempt + 1) * SETTLE_SECONDS}s "
+                  "(cache lag, not drift).")
+            return OK
+
+    print(f"\nDIVERGENT: still differs after {SETTLE_ATTEMPTS * SETTLE_SECONDS}s -- "
+          "not cache lag.")
     return explain_drift(latest_pages_run())
 
 

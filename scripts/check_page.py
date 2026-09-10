@@ -17,17 +17,19 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+from outcomes import Outcome
+
 ROOT = Path(__file__).resolve().parent.parent
 PAGE = ROOT / "index.html"
 TIMEOUT = 15
 RETRIES = 2
 UA = {"User-Agent": "mrveiss.github.io-link-check"}
 
-PASS, FAIL, UNKNOWN, SKIP = "PASS", "FAIL", "UNKNOWN", "SKIP"
-results: list[tuple[str, str, str]] = []
+PASS, FAIL, UNKNOWN, SKIP = Outcome.PASS, Outcome.FAIL, Outcome.UNKNOWN, Outcome.SKIP
+results: list[tuple[str, Outcome, str]] = []
 
 
-def record(name: str, outcome: str, detail: str = "") -> None:
+def record(name: str, outcome: Outcome, detail: str = "") -> None:
     results.append((name, outcome, detail))
 
 
@@ -101,7 +103,7 @@ def check_og_image_absolute(text: str) -> str | None:
     return url
 
 
-def probe(url: str) -> tuple[str, str]:
+def probe(url: str) -> tuple[Outcome, str]:
     """Return (outcome, detail). A network failure is UNKNOWN, never PASS."""
     last = ""
     for attempt in range(RETRIES + 1):
@@ -182,10 +184,34 @@ def check_links(urls: list[str], skip: set[str]) -> None:
         record(f"link {url}", outcome, detail)
 
 
+def report() -> int:
+    """Print every verdict, then the annotations, then the exit code."""
+    width = max(len(n) for n, _, _ in results)
+    for name, outcome, detail in results:
+        print(f"{outcome.label:<7} {name:<{width}}  {detail}")
+
+    failed = [r for r in results if r[1] is FAIL]
+    unknown = [r for r in results if r[1] is UNKNOWN]
+    skipped = [r for r in results if r[1] is SKIP]
+    passed = len(results) - len(failed) - len(unknown) - len(skipped)
+    print(f"\n{len(results)} checks: {passed} pass, {len(failed)} fail, "
+          f"{len(unknown)} could not be checked, {len(skipped)} not applicable")
+
+    for name, _, detail in failed:
+        print(f"::error title=Check failed::{name}: {detail}")
+    for name, _, detail in unknown:
+        print(f"::error title=Could not check::{name}: {detail} "
+              "-- reported as could-not-check, not as a pass")
+
+    if failed:
+        return FAIL.exit_code
+    return UNKNOWN.exit_code if unknown else PASS.exit_code
+
+
 def main() -> int:
     if not PAGE.exists():
         print(f"UNKNOWN: {PAGE} does not exist -- nothing was checked", file=sys.stderr)
-        return 2
+        return UNKNOWN.exit_code
     text = PAGE.read_text(encoding="utf-8")
 
     check_no_front_matter(text)
@@ -199,26 +225,7 @@ def main() -> int:
         urls.append(og)
     check_links(urls, preconnect_origins(text))
 
-    width = max(len(n) for n, _, _ in results)
-    for name, outcome, detail in results:
-        print(f"{outcome:<7} {name:<{width}}  {detail}")
-
-    failed = [r for r in results if r[1] == FAIL]
-    unknown = [r for r in results if r[1] == UNKNOWN]
-    skipped = [r for r in results if r[1] == SKIP]
-    passed = len(results) - len(failed) - len(unknown) - len(skipped)
-    print(f"\n{len(results)} checks: {passed} pass, {len(failed)} fail, "
-          f"{len(unknown)} could not be checked, {len(skipped)} not applicable")
-
-    for name, _, detail in failed:
-        print(f"::error title=Check failed::{name}: {detail}")
-    for name, _, detail in unknown:
-        print(f"::error title=Could not check::{name}: {detail} "
-              "-- reported as could-not-check, not as a pass")
-
-    if failed:
-        return 1
-    return 3 if unknown else 0
+    return report()
 
 
 if __name__ == "__main__":

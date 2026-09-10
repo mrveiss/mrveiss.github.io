@@ -18,18 +18,22 @@ on:
   schedule:
     - cron: '7,37 * * * *'
 
-  # The moment drift either resolves or becomes permanent. Fires on a CANCELLED
-  # deploy too, which is the case that holds a divergence open indefinitely and the
-  # one the Pages API mislabels as "Page build failed."
+  # `page_build` is GitHub's own event for exactly this: it fires when a push to the
+  # Pages publishing source finishes building. This repository uses the legacy Pages
+  # build (`build_type: legacy`), which is what emits it.
   #
-  # UNVERIFIED: `pages build and deployment` is a dynamic workflow
-  # (dynamic/pages/pages-build-deployment), not a file in .github/workflows, and I do
-  # not know whether workflow_run matches a generated workflow by name. The next
-  # deploy is the test. If no workflow_run-triggered run appears, this trigger is
-  # inert and the cron is all there is -- do not assume it works because it is here.
-  workflow_run:
-    workflows: ["pages build and deployment"]
-    types: [completed]
+  # This REPLACES a `workflow_run` trigger on "pages build and deployment", which was
+  # measured inert: across two deploys after it was installed -- one at 04:37 and a
+  # clean one at 08:08 -- `?event=workflow_run` reported total_count 0. A generated
+  # workflow (dynamic/pages/pages-build-deployment) is evidently not matchable by
+  # name. It was removed rather than left in place: an inert trigger reads as
+  # coverage, which is worse than an absent one.
+  #
+  # UNVERIFIED in the same way its predecessor was: whether `page_build` actually
+  # fires here is not known until observed. If the next deploy produces no
+  # page_build-triggered run, cron is the only mechanism and the 40-minute detection
+  # target is NOT met -- say that on #3 rather than ticking the criterion.
+  page_build:
 
   workflow_dispatch:
 

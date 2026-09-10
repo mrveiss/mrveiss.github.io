@@ -81,12 +81,24 @@ def check_og_image_absolute(text: str) -> str | None:
         record("og:image present", FAIL, "no og:image meta tag")
         return None
     url = m.group(1)
-    if url.startswith(("http://", "https://")):
-        record("og:image is absolute", PASS, url)
-        return url
-    record("og:image is absolute", FAIL,
-           f"relative og:image renders nothing on every platform: {url}")
-    return None
+    if not url.startswith(("http://", "https://")):
+        record("og:image is absolute", FAIL,
+               f"relative og:image renders nothing on every platform: {url}")
+        return None
+    record("og:image is absolute", PASS, url)
+
+    # Before the card existed this pointed at /AutoBot-AI/screenshots/01-chat.png --
+    # a product screenshot standing in for a social card. It rendered *something*,
+    # so it never looked broken, which is why it survived. A screenshot at whatever
+    # aspect ratio it happens to be is not a 2:1 card, and twitter:card is
+    # summary_large_image, which crops hard.
+    if "/assets/social-card.png" in url:
+        record("og:image is the social card", PASS, "assets/social-card.png")
+    else:
+        record("og:image is the social card", FAIL,
+               f"points at {url}, not the generated card at /assets/social-card.png — "
+               "a screenshot here renders but is not a card")
+    return url
 
 
 def probe(url: str) -> tuple[str, str]:
@@ -134,10 +146,37 @@ def collect_urls(files: list[Path]) -> list[str]:
     return sorted(u.rstrip(".,;") for u in urls)
 
 
+SITE_ORIGIN = "https://mrveiss.github.io/"
+
+
+def local_file_for(url: str) -> Path | None:
+    """Map a site URL to a file this repository ships, if it ships one.
+
+    An asset added in the same commit that references it does not exist at the
+    origin yet, so fetching it 404s and the introducing PR fails its own gate. The
+    file is the thing under review; the deployed copy is downstream of it.
+
+    Only paths this repository actually contains resolve here — `/AutoBot-AI/...`
+    is a different repository and still gets fetched.
+    """
+    if not url.startswith(SITE_ORIGIN):
+        return None
+    rel = url[len(SITE_ORIGIN):].split("#")[0].split("?")[0]
+    if not rel:
+        return None
+    candidate = ROOT / rel
+    return candidate if candidate.is_file() else None
+
+
 def check_links(urls: list[str], skip: set[str]) -> None:
     for url in urls:
         if url.rstrip("/") in skip:
             record(f"link {url}", SKIP, "preconnect/dns-prefetch origin, not a document")
+            continue
+        local = local_file_for(url)
+        if local is not None:
+            record(f"link {url}", PASS,
+                   f"ships in this repo: {local.relative_to(ROOT)}, {local.stat().st_size} bytes")
             continue
         outcome, detail = probe(url)
         record(f"link {url}", outcome, detail)

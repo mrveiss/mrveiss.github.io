@@ -1,0 +1,8 @@
+# Python bytecode. `scripts/__pycache__/check_freshness.cpython-310.pyc` was tracked
+# until 2026-09-10 — committed by a `git add -A`, stale by construction, and named
+# for one interpreter version on one machine.
+__pycache__/
+*.py[cod]
+
+# Fonts for assets/make_card.py are fetched, not vendored — see README.md.
+assets/fonts/
